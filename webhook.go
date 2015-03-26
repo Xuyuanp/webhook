@@ -63,5 +63,5 @@ func pushEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Printf("%V\n", event)
+	fmt.Printf("%v\n", event)
 }
