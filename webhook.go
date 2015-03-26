@@ -5,8 +5,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+
+	"github.com/codegangsta/cli"
 )
 
+const (
+	appName    = "webhook"
+	appUsage   = "handle git webhook and auto update repo"
+	appVersion = "v0.0.1"
+	appAuthor  = "Xuyuan Pang"
+	appEmail   = "pangxuyuan@gmail.com"
+)
+
+// Repository struct
 type Repository struct {
 	Name        string `json:"name"`
 	URL         string `json:"url"`
@@ -14,6 +26,7 @@ type Repository struct {
 	Homepage    string `json:"homepage"`
 }
 
+// Commit struct
 type Commit struct {
 	ID        string `json:"id"`
 	Message   string `json:"message"`
@@ -22,11 +35,13 @@ type Commit struct {
 	Author    Author `json:"author"`
 }
 
+// Author struct
 type Author struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
+// PushEvent struct
 type PushEvent struct {
 	Before            string     `json:"before"`
 	After             string     `json:"after"`
@@ -40,12 +55,26 @@ type PushEvent struct {
 }
 
 func main() {
-	mux := http.NewServeMux()
+	app := cli.NewApp()
 
-	mux.HandleFunc("/push", pushEventHandler)
-	mux.HandleFunc("/push/tag", pushTagEventHandler)
+	app.Name = appName
+	app.Usage = appUsage
+	app.Version = appVersion
+	app.Author = appAuthor
+	app.Email = appEmail
+	app.HideHelp = true
 
-	http.ListenAndServe(":12138", mux)
+	app.Action = func(ctx *cli.Context) {
+
+		mux := http.NewServeMux()
+
+		mux.HandleFunc("/push", pushEventHandler)
+		mux.HandleFunc("/push/tag", pushTagEventHandler)
+
+		http.ListenAndServe(":12138", mux)
+	}
+
+	app.Run(os.Args)
 }
 
 func pushEventHandler(w http.ResponseWriter, req *http.Request) {
@@ -63,8 +92,6 @@ func pushEventHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	fmt.Printf("%v\n", event)
 }
 
 func pushTagEventHandler(w http.ResponseWriter, req *http.Request) {
