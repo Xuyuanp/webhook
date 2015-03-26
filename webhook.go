@@ -74,5 +74,5 @@ func tagEventHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("%v\n", data)
+	fmt.Printf("%v\n", string(data))
 }
