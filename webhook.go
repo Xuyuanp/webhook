@@ -43,6 +43,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/push", pushEventHandler)
+	mux.HandleFunc("/tag", tagEventHandler)
 
 	http.ListenAndServe(":12138", mux)
 }
@@ -64,4 +65,14 @@ func pushEventHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	fmt.Printf("%v\n", event)
+}
+
+func tagEventHandler(w http.ResponseWriter, req *http.Request) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	fmt.Printf("%v\n", data)
 }
