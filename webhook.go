@@ -2,21 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	"flag"
+	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
-
-	"github.com/codegangsta/cli"
+	"os/exec"
 )
 
-const (
-	appName    = "webhook"
-	appUsage   = "handle git webhook and auto update repo"
-	appVersion = "v0.0.1"
-	appAuthor  = "Xuyuan Pang"
-	appEmail   = "pangxuyuan@gmail.com"
-)
+var updateScript = flag.String("update-script", "", "update shell path")
 
 // Repository struct
 type Repository struct {
@@ -54,61 +49,73 @@ type PushEvent struct {
 	TotalCommitsCount int        `json:"total_commits_count"`
 }
 
+func init() {
+	flag.Parse()
+}
+
 func main() {
-	app := cli.NewApp()
-
-	app.Name = appName
-	app.Usage = appUsage
-	app.Version = appVersion
-	app.Author = appAuthor
-	app.Email = appEmail
-	app.HideHelp = true
-
-	app.Action = func(ctx *cli.Context) {
-
-		mux := http.NewServeMux()
-
-		mux.HandleFunc("/push", pushEventHandler)
-		mux.HandleFunc("/push/tag", pushTagEventHandler)
-
-		http.ListenAndServe(":12138", mux)
+	if *updateScript == "" {
+		log.Fatal("update shell required")
 	}
 
-	app.Run(os.Args)
+	stat, err := os.Stat(*updateScript)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if stat.Mode()&0100 == 0 {
+		log.Fatal("script has no exec perm")
+	}
+
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/push", pushEventHandler)
+	mux.HandleFunc("/push/tag", pushTagEventHandler)
+
+	log.Fatal(http.ListenAndServe(":12138", mux))
 }
 
 func pushEventHandler(w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
+	event, err := parseEvent(req.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	event := &PushEvent{}
-	err = json.Unmarshal(data, event)
-	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
+	if event.Ref != "refs/head/develop" {
+		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+
+	cmd := exec.Command(*updateScript)
+	if err = cmd.Run(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func pushTagEventHandler(w http.ResponseWriter, req *http.Request) {
-	data, err := ioutil.ReadAll(req.Body)
+	event, err := parseEvent(req.Body)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
+	}
+
+	log.Printf("%v\n", event)
+}
+
+func parseEvent(r io.Reader) (*Event, error) {
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
 	}
 
 	event := &PushEvent{}
 	err = json.Unmarshal(data, event)
 	if err != nil {
-		fmt.Println(err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil, err
 	}
-
-	fmt.Printf("%v\n", event)
+	return event, nil
 }
