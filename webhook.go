@@ -79,7 +79,7 @@ func pushEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if event.Ref != "refs/head/develop" {
+	if event.Ref != "refs/heads/develop" {
 		w.WriteHeader(http.StatusNotModified)
 		return
 	}
