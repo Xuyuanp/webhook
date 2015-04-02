@@ -58,12 +58,9 @@ func main() {
 		log.Fatal("update shell required")
 	}
 
-	stat, err := os.Stat(*updateScript)
+	_, err := os.Stat(*updateScript)
 	if err != nil {
 		log.Fatal(err)
-	}
-	if stat.Mode()&0100 == 0 {
-		log.Fatal("script has no exec perm")
 	}
 
 	mux := http.NewServeMux()
@@ -87,11 +84,14 @@ func pushEventHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	cmd := exec.Command(*updateScript)
-	if err = cmd.Run(); err != nil {
+	cmd := exec.Command("sh", *updateScript)
+	out, err := cmd.Output()
+	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	log.Println(string(out))
 	w.WriteHeader(http.StatusOK)
 }
 
