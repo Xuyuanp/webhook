@@ -46,13 +46,13 @@ type WebHook struct {
 func New() *WebHook {
 	return &WebHook{
 		PushEventHandler: func(event *PushEvent) {
-			log.Printf("%T\n", event)
+			log.Printf("%+v\n", event)
 		},
 		IssuesEventHandler: func(event *IssuesEvent) {
-			log.Printf("%T\n", event)
+			log.Printf("%+v\n", event)
 		},
 		MergeRequestEventHandler: func(event *MergeRequestEvent) {
-			log.Printf("%T\n", event)
+			log.Printf("%+v\n", event)
 		},
 	}
 }
@@ -71,6 +71,7 @@ func (wh *WebHook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	case *MergeRequestEvent:
 		wh.MergeRequestEventHandler(event)
 	default:
+		log.Println("unknown event")
 	}
 	w.WriteHeader(http.StatusOK)
 }
@@ -82,18 +83,18 @@ func parseEvent(r io.Reader) (interface{}, error) {
 	}
 	pushEvent := &PushEvent{}
 	err = json.Unmarshal(data, pushEvent)
-	if err != nil {
+	if err == nil {
 		return pushEvent, nil
 	}
 	issuesEvent := &IssuesEvent{}
 	err = json.Unmarshal(data, issuesEvent)
-	if err != nil {
+	if err == nil {
 		return issuesEvent, nil
 	}
 	mergeRequestEvent := &MergeRequestEvent{}
 	err = json.Unmarshal(data, mergeRequestEvent)
-	if err != nil {
+	if err == nil {
 		return mergeRequestEvent, nil
 	}
-	return nil, errors.New("unknown event")
+	return nil, errors.New("unknown format")
 }
