@@ -2,16 +2,15 @@ package webhook
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 )
 
 // PushEventHandler function
 type PushEventHandler func(event *PushEvent)
-
-// PushTagEventHandler function
-type PushTagEventHandler func(evetn *PushEvent)
 
 // IssuesEventHandler function
 type IssuesEventHandler func(event *IssuesEvent)
@@ -22,88 +21,62 @@ type MergeRequestEventHandler func(event *MergeRequestEvent)
 // WebHook struct
 type WebHook struct {
 	PushEventHandler         PushEventHandler
-	PushTagEventHandler      PushTagEventHandler
 	IssuesEventHandler       IssuesEventHandler
 	MergeRequestEventHandler MergeRequestEventHandler
-
-	PushEventPath         string
-	PushTagEventPath      string
-	IssuesEventPath       string
-	MergeRequestEventPath string
-
-	ListenAddr string
-}
-
-// Run startup webhook service
-func (wh *WebHook) Run() error {
-	return http.ListenAndServe(wh.ListenAddr, wh)
 }
 
 // New return new WebHook
-func New(addr string) *WebHook {
+func New() *WebHook {
 	return &WebHook{
-		PushEventPath:         "/push",
-		PushTagEventPath:      "/push/tag",
-		IssuesEventPath:       "/issues",
-		MergeRequestEventPath: "/mergerequest",
-		ListenAddr:            addr,
+		PushEventHandler: func(event *PushEvent) {
+			log.Printf("%T\n", event)
+		},
+		IssuesEventHandler: func(event *IssuesEvent) {
+			log.Printf("%T\n", event)
+		},
+		MergeRequestEventHandler: func(event *MergeRequestEvent) {
+			log.Printf("%T\n", event)
+		},
 	}
 }
 
 func (wh *WebHook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	path := req.URL.Path
-	switch path {
-	case wh.PushEventPath:
-		if wh.PushEventHandler != nil {
-			event := &PushEvent{}
-			if err := parseEvent(req.Body, event); err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-			wh.PushEventHandler(event)
-			w.WriteHeader(http.StatusOK)
-		}
-	case wh.PushTagEventPath:
-		if wh.PushTagEventHandler != nil {
-			event := &PushEvent{}
-			if err := parseEvent(req.Body, event); err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-			wh.PushTagEventHandler(event)
-			w.WriteHeader(http.StatusOK)
-		}
-	case wh.IssuesEventPath:
-		if wh.IssuesEventHandler != nil {
-			event := &IssuesEvent{}
-			if err := parseEvent(req.Body, event); err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-			wh.IssuesEventHandler(event)
-			w.WriteHeader(http.StatusOK)
-		}
-	case wh.MergeRequestEventPath:
-		if wh.MergeRequestEventHandler != nil {
-			event := &MergeRequestEvent{}
-			if err := parseEvent(req.Body, event); err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-			wh.MergeRequestEventHandler(event)
-			w.WriteHeader(http.StatusOK)
-		}
-	default:
-		http.NotFound(w, req)
+	v, err := parseEvent(req.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
+	switch event := v.(type) {
+	case *PushEvent:
+		wh.PushEventHandler(event)
+	case *IssuesEvent:
+		wh.IssuesEventHandler(event)
+	case *MergeRequestEvent:
+		wh.MergeRequestEventHandler(event)
+	default:
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
-func parseEvent(r io.Reader, event interface{}) error {
+func parseEvent(r io.Reader) (interface{}, error) {
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	err = json.Unmarshal(data, event)
-	return err
+	pushEvent := &PushEvent{}
+	err = json.Unmarshal(data, pushEvent)
+	if err != nil {
+		return pushEvent, nil
+	}
+	issuesEvent := &IssuesEvent{}
+	err = json.Unmarshal(data, issuesEvent)
+	if err != nil {
+		return issuesEvent, nil
+	}
+	mergeRequestEvent := &MergeRequestEvent{}
+	err = json.Unmarshal(data, mergeRequestEvent)
+	if err != nil {
+		return mergeRequestEvent, nil
+	}
+	return nil, errors.New("unknown event")
 }
